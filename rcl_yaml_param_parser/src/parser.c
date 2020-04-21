@@ -1766,3 +1766,61 @@ bool rcl_parse_yaml_value(
 
   return RCUTILS_RET_OK == ret;
 }
+
+bool rcl_parse_yaml_clean(
+  rcl_params_t * params_st,
+  rcl_node_params_t * node_params,
+  const char * node_name)
+{
+  if (NULL == node_name || 0U == strlen(node_name)) {
+    return false;
+  }
+
+  if (NULL == params_st) {
+    RCUTILS_SAFE_FWRITE_TO_STDERR("Pass an initialized parameter structure");
+    return false;
+  }
+
+  if (NULL == node_params) {
+    RCUTILS_SAFE_FWRITE_TO_STDERR("Pass an initialized node structure");
+    return false;
+  }
+
+  rcutils_allocator_t allocator = params_st->allocator;
+  size_t wildcard_index = 0U;
+  for (size_t node_index = 0U; node_index < params_st->num_nodes; ++node_index) {
+    if (strcmp(params_st->node_names[node_index], node_name) == 0) {
+      node_params->num_params = params_st->params[node_index].num_params;
+      for (size_t param_index = 0U; param_index < node_params->num_params; ++param_index) {
+        node_params->parameter_names[param_index] =
+          rcutils_strdup(params_st->params[node_index].parameter_names[param_index], allocator);
+        node_params->parameter_values[param_index] =
+          *rcl_yaml_node_struct_get(node_name, node_params->parameter_names[param_index],
+            params_st);
+      }
+    } else if (wildcard_index == 0U && strcmp(params_st->node_names[node_index], "/**") == 0) {
+      wildcard_index = node_index;
+    }
+  }
+  if (wildcard_index != 0U) {
+    for (size_t param_index = 0U; param_index < params_st->params[wildcard_index].num_params;
+      ++param_index)
+    {
+      size_t node_idx = 0U;
+      rcutils_ret_t ret =
+        find_node(params_st->params[wildcard_index].parameter_names[param_index], params_st,
+          &node_idx);
+      if (ret == RCUTILS_RET_OK) {
+        continue;
+      }
+      node_params->num_params++;
+      node_params->parameter_names[node_params->num_params] =
+        rcutils_strdup(params_st->params[wildcard_index].parameter_names[param_index], allocator);
+      node_params->parameter_values[node_params->num_params] =
+        *rcl_yaml_node_struct_get("/**",
+          params_st->params[wildcard_index].parameter_names[param_index], params_st);
+    }
+  }
+
+  return true;
+}

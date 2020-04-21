@@ -482,6 +482,32 @@ TEST(test_file_parser, maximum_number_parameters) {
   EXPECT_FALSE(res);
 }
 
+TEST(test_file_parser, node_params_preprocess) {
+  rcutils_reset_error();
+  EXPECT_TRUE(rcutils_get_cwd(cur_dir, 1024)) << rcutils_get_error_string().str;
+  rcutils_allocator_t allocator = rcutils_get_default_allocator();
+  char * test_path = rcutils_join_path(cur_dir, "test", allocator);
+  ASSERT_TRUE(NULL != test_path) << rcutils_get_error_string().str;
+  OSRF_TESTING_TOOLS_CPP_SCOPE_EXIT({
+    allocator.deallocate(test_path, allocator.state);
+  });
+  char * path = rcutils_join_path(test_path, "correct_config.yaml", allocator);
+  ASSERT_TRUE(NULL != path) << rcutils_get_error_string().str;
+  OSRF_TESTING_TOOLS_CPP_SCOPE_EXIT({
+    allocator.deallocate(path, allocator.state);
+  });
+  ASSERT_TRUE(rcutils_exists(path)) << "No test YAML file found at " << path;
+  rcl_params_t * params_hdl = rcl_yaml_node_struct_init(allocator);
+  ASSERT_TRUE(NULL != params_hdl) << rcutils_get_error_string().str;
+  bool res = rcl_parse_yaml_file(path, params_hdl);
+  ASSERT_TRUE(res) << rcutils_get_error_string().str;
+  rcl_node_params_t * node_params = allocator.zero_allocate(1U, sizeof(rcl_node_params_t), allocator.state);
+  node_params_init(node_params,allocator);
+  ASSERT_TRUE(NULL != node_params) << rcutils_get_error_string().str;
+  res = rcl_parse_yaml_clean(params_hdl, node_params, "lidar_2");
+  ASSERT_TRUE(res) << rcutils_get_error_string().str;
+}
+
 int32_t main(int32_t argc, char ** argv)
 {
   ::testing::InitGoogleTest(&argc, argv);
